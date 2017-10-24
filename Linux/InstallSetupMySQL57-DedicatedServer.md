@@ -151,9 +151,10 @@ UUID=fe8bbeab-84e4-4bab-8baf-7a604eea8b5b /boot                   xfs     defaul
 /dev/mapper/rhel-home   	/home                   xfs     defaults        0 0
 /dev/mapper/rhel-var    	/var                    xfs     defaults        0 0
 /dev/mapper/rhel-swap   	swap                    swap    defaults        0 0
-/dev/mapper/rhel-mysql		/var/lib/mysql          xfs     defaults        0 0
-/dev/mapper/rhel-binlog		/var/lib/mysql-binlog   xfs     defaults        0 0
-/dev/mapper/rhel-relay--bin	/var/lib/mysql-relay    xfs     defaults        0 0
+/dev/mapper/rhel-mysql		/var/lib/mysql          xfs     relatime,rw,exec,async,auto,dev,user        0 0
+/dev/mapper/rhel-binlog		/var/lib/mysql-binlog   xfs     relatime,rw,exec,async,auto,dev,user        0 0
+/dev/mapper/rhel-relay--bin	/var/lib/mysql-relay    xfs     relatime,rw,exec,async,auto,dev,user        0 0
+[root@localhost ~]# 
 ```
 
 + Mount the new LVMs in the new dirs and check
@@ -172,30 +173,30 @@ tmpfs on /run type tmpfs (rw,nosuid,nodev,mode=755)
 tmpfs on /sys/fs/cgroup type tmpfs (ro,nosuid,nodev,noexec,mode=755)
 cgroup on /sys/fs/cgroup/systemd type cgroup (rw,nosuid,nodev,noexec,relatime,xattr,release_agent=/usr/lib/systemd/systemd-cgroups-agent,name=systemd)
 pstore on /sys/fs/pstore type pstore (rw,nosuid,nodev,noexec,relatime)
-cgroup on /sys/fs/cgroup/hugetlb type cgroup (rw,nosuid,nodev,noexec,relatime,hugetlb)
-cgroup on /sys/fs/cgroup/devices type cgroup (rw,nosuid,nodev,noexec,relatime,devices)
-cgroup on /sys/fs/cgroup/net_cls,net_prio type cgroup (rw,nosuid,nodev,noexec,relatime,net_prio,net_cls)
 cgroup on /sys/fs/cgroup/freezer type cgroup (rw,nosuid,nodev,noexec,relatime,freezer)
-cgroup on /sys/fs/cgroup/blkio type cgroup (rw,nosuid,nodev,noexec,relatime,blkio)
-cgroup on /sys/fs/cgroup/memory type cgroup (rw,nosuid,nodev,noexec,relatime,memory)
-cgroup on /sys/fs/cgroup/cpu,cpuacct type cgroup (rw,nosuid,nodev,noexec,relatime,cpuacct,cpu)
-cgroup on /sys/fs/cgroup/perf_event type cgroup (rw,nosuid,nodev,noexec,relatime,perf_event)
 cgroup on /sys/fs/cgroup/pids type cgroup (rw,nosuid,nodev,noexec,relatime,pids)
+cgroup on /sys/fs/cgroup/cpu,cpuacct type cgroup (rw,nosuid,nodev,noexec,relatime,cpuacct,cpu)
+cgroup on /sys/fs/cgroup/net_cls,net_prio type cgroup (rw,nosuid,nodev,noexec,relatime,net_prio,net_cls)
+cgroup on /sys/fs/cgroup/memory type cgroup (rw,nosuid,nodev,noexec,relatime,memory)
 cgroup on /sys/fs/cgroup/cpuset type cgroup (rw,nosuid,nodev,noexec,relatime,cpuset)
+cgroup on /sys/fs/cgroup/blkio type cgroup (rw,nosuid,nodev,noexec,relatime,blkio)
+cgroup on /sys/fs/cgroup/devices type cgroup (rw,nosuid,nodev,noexec,relatime,devices)
+cgroup on /sys/fs/cgroup/hugetlb type cgroup (rw,nosuid,nodev,noexec,relatime,hugetlb)
+cgroup on /sys/fs/cgroup/perf_event type cgroup (rw,nosuid,nodev,noexec,relatime,perf_event)
 configfs on /sys/kernel/config type configfs (rw,relatime)
 /dev/mapper/rhel-root on / type xfs (rw,relatime,attr2,inode64,noquota)
-systemd-1 on /proc/sys/fs/binfmt_misc type autofs (rw,relatime,fd=32,pgrp=1,timeout=300,minproto=5,maxproto=5,direct)
-mqueue on /dev/mqueue type mqueue (rw,relatime)
-debugfs on /sys/kernel/debug type debugfs (rw,relatime)
+systemd-1 on /proc/sys/fs/binfmt_misc type autofs (rw,relatime,fd=29,pgrp=1,timeout=300,minproto=5,maxproto=5,direct)
 hugetlbfs on /dev/hugepages type hugetlbfs (rw,relatime)
+debugfs on /sys/kernel/debug type debugfs (rw,relatime)
+mqueue on /dev/mqueue type mqueue (rw,relatime)
 /dev/sda1 on /boot type xfs (rw,relatime,attr2,inode64,noquota)
-/dev/mapper/rhel-home on /home type xfs (rw,relatime,attr2,inode64,noquota)
 /dev/mapper/rhel-var on /var type xfs (rw,relatime,attr2,inode64,noquota)
-tmpfs on /run/user/0 type tmpfs (rw,nosuid,nodev,relatime,size=180988k,mode=700)
+/dev/mapper/rhel-home on /home type xfs (rw,relatime,attr2,inode64,noquota)
+/dev/mapper/rhel-relay--bin on /var/lib/mysql-relay type xfs (rw,nosuid,nodev,noexec,relatime,attr2,inode64,noquota,user)
 /dev/mapper/rhel-mysql on /var/lib/mysql type xfs (rw,relatime,attr2,inode64,noquota)
 /dev/mapper/rhel-binlog on /var/lib/mysql-binlog type xfs (rw,relatime,attr2,inode64,noquota)
-/dev/mapper/rhel-relay--bin on /var/lib/mysql-relay type xfs (rw,relatime,attr2,inode64,noquota)
-[root@localhost lib]# 
+tmpfs on /run/user/0 type tmpfs (rw,nosuid,nodev,relatime,size=180988k,mode=700)
+[root@localhost ~]# 
 ```
 
 + Check that all directories exists and are mounted.
@@ -209,32 +210,31 @@ drwxr-xr-x  2 mysql   mysql      6 Oct 23 17:43 mysql-relay
 [root@localhost lib]# 
 ```
 
-#### falta cambiar en el mount para al montar los permisos persistan para el usuario mysql
-
 ### MySQL Server installation
 
 + Proceed to install mysql repo
 
-$ yum install https://dev.mysql.com/get/mysql57-community-release-el7-11.noarch.rpm
+	`$ yum install https://dev.mysql.com/get/mysql57-community-release-el7-11.noarch.rpm`
 
-3- Then install mysql community edition
++ Then install mysql community edition
 
-$ yum install mysql-community-server.x86_64
+	`[root@localhost lib]# yum install mysql-community-server.x86_64`
+	
+	`[root@localhost lib]# systemctl enable mysqld`
+	
+	`[root@localhost lib]# systemctl start mysqld`
+	
+	`[root@localhost lib]# egrep pass /var/log/mysqld.log`
+	
+	`[root@localhost lib]# mysql -u root -p'4x7DL%y,dcUs'`
 
-$ systemctl enable mysqld
++ Change password
 
-$ systemctl start mysqld
+	`mysql>  ALTER USER root@localhost IDENTIFY BY 'Isolation Level54$' PASSWORD EXPIRE NEVER;`
 
-$ egrep pass /var/log/mysqld.log
++ Add Monitoring users if desired
 
-$ mysql -u root -p'4x7DL%y,dcUs'
-
-4- Change password
-
-mysql>  ALTER USER root@localhost IDENTIFY BY 'Isolation Level54$' PASSWORD EXPIRE NEVER;
-
-5- Add Monitoring users if desired
-
+```
 mysql> CREATE USER IF NOT EXISTS centreon@10.1.123.87 IDENTIFIED BY 'C3ntre0n$' PASSWORD EXPIRE NEVER;
 Query OK, 0 rows affected (0.00 sec)
 
@@ -246,6 +246,7 @@ Query OK, 0 rows affected (0.00 sec)
 mysql> CREATE USER 'slave_user'@'10.1.120.%' IDENTIFIED BY 'Cl4rin1' PASSWORD EXPIRE NEVER;
 
 mysql> GRANT REPLICATION SLAVE ON *.* TO 'slave_user'@'10.1.120.%'
+```
 
 7- Verify users
 
