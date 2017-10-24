@@ -397,18 +397,18 @@ Finally we can see all the lvm
 
   `mysql> START SLAVE IO_THREAD`
 
-  c. Check connection and replication IO status, "Slave_IO_State", "Master_Log_File", "Slave_IO_Running"
+  d. Check connection and replication IO status, "Slave_IO_State", "Master_Log_File", "Slave_IO_Running"
 
   `mysql> show slave status\G`
 
-  d. start write thread, it will aply the binaries that came through IO thread
+  e. start write thread, it will aply the binaries that came through IO thread
 
   `mysql> START SLAVE SQL_THREAD`
 
-  e. Check status again
+  f. Check status again
 
   `mysql> show slave status\G`
 
-  f. Testing the GTID replication and failover.
+  g. Testing the GTID replication and failover.
 
 ## Enjoy!
