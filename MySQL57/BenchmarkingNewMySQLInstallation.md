@@ -9,7 +9,7 @@
 	[root@localhost src]# mysql -u root -p -h 127.0.0.1 --show-warnings
 
 	```
-+ Execute the script [database_schema_lab.sql]()
++ Execute the script [database_schema_lab.sql](https://github.com/Cepxio/MySQL/blob/master/MySQL57/database_schema_lab.sql)
 	It contains everything.
 
 
