@@ -9,10 +9,7 @@
 -- 4- The employees musn't be deleted, they have a status flag.
 -- 5- The pieces belong to a branch.
 -- 6- The pieces belong to a sections
-
--- 2- Las piezas pertenecen a un empleado, o fue procesado por tal.
--- 3- Las piezas suman o restan al stock pero no se borran, tienen un flag de estado.
--- 8- El inventario pertenece a una seccion.
+-- 7- The pieces belong to a employee, or is procesed by.
 
 -- Table sucursals
 CREATE TABLE `branch_offices` (
