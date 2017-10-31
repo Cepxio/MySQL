@@ -6,6 +6,7 @@
   + /var/lib/mysql 
   + /var/lib/mysql-binlog
   + /var/lib/mysql-relay
+  + /var/lib/mysql-redolog
 
 ### Resize physical partition 
 
@@ -57,7 +58,7 @@ Then, we need to give a format to the new volume, in this case will be XFS.
 
 #### Second partition, the binlog directory
 
-As the previous step, the same action, create de LVM and format it.
+As the previous step, the same action, create LVM and format it.
 For this example the size is smaller than datadir.
 
   ```
@@ -77,7 +78,7 @@ For this example the size is smaller than datadir.
 
 #### Third partition, the relay binlog directory
 
-Same action, create de LVM and format it.
+Same action, create LVM and format it.
 For this example the size is smaller than datadir, too.
 
   ```
@@ -95,29 +96,45 @@ For this example the size is smaller than datadir, too.
   realtime =none                   extsz=4096   blocks=0, rtextents=0
   [root@localhost mysql]# 
   ```
+### Forth partition, the redolog directory 
+
+Same action, create LVM and format it
+The size of the LVM must be upper than the size we calculate for the redo log (WAL)
+
+  ```
+  [root@localhost mysql]# lvcreate -L 1.5G -n redolog rhel
+    Logical volume "redolog" created.
+  [root@localhost mysql]# mkfs.xfs /dev/rhel/redolog 
+  meta-data=/dev/rhel/redolog      isize=512    agcount=4, agsize=98304 blks
+           =                       sectsz=4096  attr=2, projid32bit=1
+           =                       crc=1        finobt=0, sparse=0
+  data     =                       bsize=4096   blocks=393216, imaxpct=25
+           =                       sunit=0      swidth=0 blks
+  naming   =version 2              bsize=4096   ascii-ci=0 ftype=1
+  log      =internal log           bsize=4096   blocks=2560, version=2
+           =                       sectsz=4096  sunit=1 blks, lazy-count=1
+  realtime =none                   extsz=4096   blocks=0, rtextents=0
+  [root@localhost mysql]# 
+  ```
 
 Finally we can see all the lvm 
 
   ```
   [root@localhost mysql]# lvs
     LV        VG   Attr       LSize Pool Origin Data%  Meta%  Move Log Cpy%Sync Convert
-    binlog    rhel -wi-a----- 1.00g                                                    
+    binlog    rhel -wi-ao---- 1.00g                                                    
     home      rhel -wi-ao---- 2.00g                                                    
-    mysql     rhel -wi-a----- 3.00g                                                    
-    relay-bin rhel -wi-a----- 1.00g                                                    
+    mysql     rhel -wi-ao---- 3.00g                                                    
+    redolog   rhel -wi-a----- 1.50g                                                    
+    relay-bin rhel -wi-ao---- 1.00g                                                    
     root      rhel -wi-ao---- 5.00g                                                    
     swap      rhel -wi-ao---- 1.00g                                                    
-    var       rhel -wi-ao---- 2.00g                                                    
-  [root@localhost mysql]# 
+    var       rhel -wi-ao---- 2.00g                             
   ```
 
 #### Now, is time to reorganize the datadir to adapt the new disk (LVM partitions)
 
-+ Rename de datadir directory mysql
-
-  `[root@localhost lib]# mv mysql mysql_ori`
-
-+ Create a new datadir directory with the same original name.
++ Create a new datadir directory with name mysql.
 
   `[root@localhost lib]# mkdir mysql`
 
@@ -127,13 +144,19 @@ Finally we can see all the lvm
 
 + Create the new binlog directory and change the owner to mysql
 
-  `[root@localhost lib]# mkdir mysql-binlog`
-  `[root@localhost lib]# chown -R mysql: mysql-binlog`
+  `[root@localhost lib]# mkdir mysql-binlog
+  [root@localhost lib]# chown -R mysql: mysql-binlog`
 
 + Create the new relay binlog directory and change the owner to mysql
 
-  `[root@localhost lib]# mkdir mysql-relay`
-  `[root@localhost lib]# chown -R mysql: mysql-relay`
+  `[root@localhost lib]# mkdir mysql-relay
+  [root@localhost lib]# chown -R mysql: mysql-relay`
+
++ Create the new redo log directory and change the owner to mysql
+
+  `[root@localhost lib]# mkdir mysql-redolog
+  [root@localhost lib]# chown -R mysql: mysql-redolog`
+
 
 + Edit de fstab to mount new dirs
 
@@ -155,6 +178,7 @@ Finally we can see all the lvm
   /dev/mapper/rhel-mysql		/var/lib/mysql          xfs     relatime,rw,exec,async,auto,dev,user        0 0
   /dev/mapper/rhel-binlog		/var/lib/mysql-binlog   xfs     relatime,rw,exec,async,auto,dev,user        0 0
   /dev/mapper/rhel-relay--bin	/var/lib/mysql-relay    xfs     relatime,rw,exec,async,auto,dev,user        0 0
+  /dev/mapper/rhel-redolog	/var/lib/mysql-redolog  xfs     relatime,rw,exec,async,auto,dev,user        0 0
   [root@localhost ~]# 
   ```
 
@@ -203,12 +227,14 @@ Finally we can see all the lvm
 + Check that all directories exists and are mounted.
 
   ```
-  drwxr-xr-x  2 mysql   mysql      6 Oct 23 17:43 mysql-binlog
+  [root@localhost lib]# ls -lh | egrep mysql
+  drwxr-xr-x  8 mysql   mysql   4.0K Oct 31 12:51 mysql
+  drwxr-xr-x  2 mysql   mysql    245 Oct 31 12:44 mysql-binlog
   drwxr-x---. 2 mysql   mysql      6 Oct  6 22:16 mysql-files
   drwxr-x---. 2 mysql   mysql      6 Jun 22 11:41 mysql-keyring
-  drwxr-x--x. 6 mysql   mysql   4.0K Oct 23 17:44 mysql_ori
+  drwxr-xr-x  2 mysql   mysql     44 Oct 31 10:45 mysql-redolog
   drwxr-xr-x  2 mysql   mysql      6 Oct 23 17:43 mysql-relay
-  [root@localhost lib]# 
+  
   ```
 
 ### MySQL Server installation
@@ -220,7 +246,136 @@ Finally we can see all the lvm
 + Then install mysql community edition
 
 	`[root@localhost lib]# yum install mysql-community-server.x86_64`
-	
+
++ Before start the server, we must do some change to adapt de standar datadir installation to the LVM partitions created
+
+
+  + Add correspond entries to my.cnf
+
+  ```
+  # For advice on how to change settings please see
+  # http://dev.mysql.com/doc/refman/5.7/en/server-configuration-defaults.html
+  
+  [client]
+  
+  port	= 3306
+  socket	= /var/lib/mysql/mysql.sock
+  
+  [mysqld]
+  
+  port				= 3306
+  datadir 			= /var/lib/mysql
+  log-error 			= /var/log/mysqld.log
+  pid-file 			= /var/run/mysqld/mysqld.pid
+  socket 				= /var/lib/mysql/mysql.sock
+  skip_name_resolve 		= ON
+  explicit_defaults_for_timestamp = 1
+  
+  # Remove leading # to set options mainly useful for reporting servers.
+  # The server defaults are faster for transactions and fast SELECTs.
+  # Adjust sizes as needed, experiment to find the optimal values.
+  # join_buffer_size = 128M
+  # sort_buffer_size = 2M
+  # read_rnd_buffer_size = 2M
+  
+  symbolic-links          = 0 	# Disabling symbolic-links is recommended to prevent assorted security risks
+  slow_query_log 		= ON
+  
+  #
+  ## GTID Replication Settings
+  #
+  gtid_mode 			= ON
+  enforce-gtid-consistency 	= TRUE
+  #gtid_executed_compression_period = 1000
+  
+  
+  #
+  # Master config
+  #
+  server-id 		= 1
+  log_bin			= /var/lib/mysql-binlog/gcpamysql01-bin
+  max_binlog_size		= 100M
+  expire_logs_days 	= 7
+  sync_binlog 		= 1
+  skip-networking 	= OFF
+  master_info_repository	= TABLE
+  
+  #
+  # Slave config
+  #
+  skip_slave_start 	= ON
+  relay_log		= /var/lib/mysql-relay/gcpamysql01-relay-bin
+  max_relay_log_size 	= 100M
+  relay_log_space_limit 	= 1G
+  # slave-parallel-workers 	= 4
+  # slave-parallel-type 	= LOGICAL_CLOCK
+  # report_host		= 10.1.120.5
+  # report_port		= 3306
+  
+  #
+  ## INNODB
+  #
+  default_storage_engine		= InnoDB	# The default is implicit, but add for information purpose.
+  innodb_file_per_table		= 1		# 
+  
+  				
+  # * Buffer Pool [Innodb Buffer] *
+  innodb_buffer_pool_size 	= 1236M		# The memory area that holds cached data for tables and indexes. 
+  						# For efficiency of high-volume read operations, the buffer pool is
+  						# divided into pages that can potentially hold multiple rows.
+  						# The amount of RAM for the most important data cache in MySQL. 
+  						# Start at 70% of total RAM for dedicated server, else 10%.
+  
+  innodb_buffer_pool_instances    = 1             # The total memory size specified by innodb_buffer_pool_size is 
+  						# divided among all buffer pool instances.
+  						# Having multiple buffer pool instances reduces contention for 
+  						# exclusive access to data structures that manage the buffer pool.
+  						# Default 8 or 1 if innodb_buffer_pool_size < 1GB
+  						# Try to give 1G per instance.
+  
+  innodb_adaptive_flushing	= ON		# Flushing dirty pages in the buffer pool based on workload
+  
+  innodb_old_blocks_pct		= 25		# Min: 5 - Max: 95 - Actual: 25 (%27.7 of the pool)
+  						# That mean the % of the pool that hold old pages.
+  						# Reduce the value for large tables scan.
+  						# Increase the value for small tables that fit into buffer pool.
+  
+  # * Log Buffer [RedoLog and LRU] *
+  innodb_flush_log_at_trx_commit 	= 1		# Control how content is flushing to disk 
+  						# 0: 1: 2: 
+  
+  #innodb_log_buffer_size		=
+  #innodb_flush_log_at_timeout	= 
+  
+  # * DoubleWrite Buffer *
+  innodb_doublewrite 		= ON		# Default = ON. 
+  
+  # * RedoLog [Log Files] *
+  
+  innodb_log_group_home_dir	= /var/lib/mysql-redolog/
+  
+  innodb_log_file_size		= 768M 		# Configuring InnoDB’s Redo space size is one of the most important 
+  						# configuration options for write-intensive workloads. 
+  						# It often makes sense to set the total size of the log files as 
+  						# large as the buffer pool or even larger.
+  						# Increasing the Redo space also means longer recovery times when 
+  						# the system loses power or crashes for other reasons.
+  innodb_log_files_in_group 	= 2
+  
+  
+  [mysqldump]
+  
+  max_allowed_packet 	= 512M
+
+  ```
+  + In the cnf we configured some variables that control the directories for the LVM partition
+    i.e
+    innodb_log_group_home_dir 	> Control de redo log directory
+    relay_log 			> Control de relay log directory
+    log_bin			> Control de binlog directory
+
++ Now enable and start the server
+
 	`[root@localhost lib]# systemctl enable mysqld`
 	
 	`[root@localhost lib]# systemctl start mysqld`
@@ -253,19 +408,8 @@ Finally we can see all the lvm
 
   `mysql> select user,host from mysql.user order by 1,2;`
 
-+ Add some settings to my.cnf both servers
 
-  ```
-  log-error = /var/log/mysqld.log
-  pid-file = /var/run/mysqld/mysqld.pid
-  skip_name_resolve = ON
-  slow_query_log = ON
-  skip-networking = OFF
-  datadir = /var/lib/mysql
-  socket = /var/lib/mysql/mysql.sock
-  ```
-
-+ Setup GTID Replication on GCPAMYSQL01 - Master
++ Verify taht Setup GTID Replication on GCPAMYSQL01 - Master was done
 
   a. Enable gtid adding this entries to my.cnf
 
@@ -274,7 +418,7 @@ Finally we can see all the lvm
   enforce-gtid-consistency = TRUE
   ```
 
-  b. Add Master conf into my.cnf
+  b. If not, Add Master conf into my.cnf
 
   ```
   log-bin = mysql01-bin
@@ -283,101 +427,9 @@ Finally we can see all the lvm
   innodb_flush_log_at_trx_commit = 1
   ```
 
++ Repeat the same steps on slave. 
 + Setup GTID Replication on GCPAMYSQL02 - Slave
 
-  a. Add correspond entries to my.cnf to MASTER ROLE
-
-  ```
-  # For advice on how to change settings please see
-  # http://dev.mysql.com/doc/refman/5.7/en/server-configuration-defaults.html
-
-  [client]
-
-  port  = 3306
-  socket  = /var/lib/mysql/mysql.sock
-
-  [mysqld]
-
-  port        = 3306
-  datadir       = /var/lib/mysql
-  log-error       = /var/log/mysqld.log
-  pid-file      = /var/run/mysqld/mysqld.pid
-  socket        = /var/lib/mysql/mysql.sock
-  skip_name_resolve     = ON
-  explicit_defaults_for_timestamp = 1
-
-  # Remove leading # to set options mainly useful for reporting servers.
-  # The server defaults are faster for transactions and fast SELECTs.
-  # Adjust sizes as needed, experiment to find the optimal values.
-  # join_buffer_size = 128M
-  # sort_buffer_size = 2M
-  # read_rnd_buffer_size = 2M
-
-  symbolic-links          = 0   # Disabling symbolic-links is recommended to prevent assorted security risks
-  slow_query_log    = ON
-
-  #
-  ## GTID Replication Settings
-  #
-  gtid_mode       = ON
-  enforce-gtid-consistency  = TRUE
-  #gtid_executed_compression_period = 1000
-
-
-  #
-  # Master config
-  #
-  server-id     = 1
-  log_bin     = /var/lib/mysql-binlog/gcpamysql01-bin
-  max_binlog_size   = 100M
-  expire_logs_days  = 7
-  sync_binlog     = 1
-  skip-networking   = OFF
-  master_info_repository  = TABLE
-
-  #
-  # Slave config
-  #
-  skip_slave_start  = ON
-  relay_log   = /var/lib/mysql-relay/gcpamysql01-relay-bin
-  max_relay_log_size  = 100M
-  relay_log_space_limit   = 1G
-  # slave-parallel-workers  = 4
-  # slave-parallel-type   = LOGICAL_CLOCK
-  # report_host   = 10.1.120.5
-  # report_port   = 3306
-  ## INNODB
-  #
-  innodb_flush_log_at_trx_commit  = 1 
-          
-              
-  innodb_buffer_pool_size   = 1236M   # The memory area that holds cached data for tables and indexes. 
-              # For efficiency of high-volume read operations, the buffer pool is
-              # divided into pages that can potentially hold multiple rows.
-              # The amount of RAM for the most important data cache in MySQL. 
-              # Start at 70% of total RAM for dedicated server, else 10%.
-
-  innodb_buffer_pool_instances    = 1             # The total memory size specified by innodb_buffer_pool_size is 
-              # divided among all buffer pool instances.
-              # Having multiple buffer pool instances reduces contention for 
-              # exclusive access to data structures that manage the buffer pool.
-              # Default 8 or 1 if innodb_buffer_pool_size < 1GB
-
-  innodb_file_per_table   = 1   # Configuring InnoDB’s Redo space size is one of the most important 
-              # configuration options for write-intensive workloads. 
-              # It often makes sense to set the total size of the log files as 
-              # large as the buffer pool or even larger.
-              # Increasing the Redo space also means longer recovery times when 
-              # the system loses power or crashes for other reasons.
-
-  innodb_log_file_size    = 768M
-  innodb_log_files_in_group   = 2
-
-  [mysqldump]
-
-  max_allowed_packet  = 512M
-
-  ```
 
   b. Set the server as slave and check settings
 
