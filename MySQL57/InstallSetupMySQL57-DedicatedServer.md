@@ -10,7 +10,7 @@
 
 ### Resize physical partition 
 
-If you created the server with a small LVM Physical Volume, you can use the steps in te following link
+If you created the server with a small LVM Physical Volume, you can use the steps in te following link to increase it size
 
 [Howto Resize LVM](https://github.com/Cepxio/MySQL/blob/master/Linux/LVMResizePhysicalVolume.md)
 
@@ -24,7 +24,12 @@ We will add three partitions more to it.
 
 With lvcreate we'll create new LVMs. 
 
-The command means `lvcreate [create command] -L 3G [size] -n mysql [new LVM name] rhel [destined volume group]`
+The command means 
+
+  ```
+  lvcreate -L [size] -n [new LVM name] [destined volume group]
+
+  ```
 
 E.g
 
@@ -144,19 +149,24 @@ Finally we can see all the lvm
 
 + Create the new binlog directory and change the owner to mysql
 
-  `[root@localhost lib]# mkdir mysql-binlog
-  [root@localhost lib]# chown -R mysql: mysql-binlog`
+  ```
+  [root@localhost lib]# mkdir mysql-binlog
+  [root@localhost lib]# chown -R mysql: mysql-binlog
+  ```
 
 + Create the new relay binlog directory and change the owner to mysql
 
-  `[root@localhost lib]# mkdir mysql-relay
-  [root@localhost lib]# chown -R mysql: mysql-relay`
+  ```
+  [root@localhost lib]# mkdir mysql-relay
+  [root@localhost lib]# chown -R mysql: mysql-relay
+  ```
 
 + Create the new redo log directory and change the owner to mysql
 
-  `[root@localhost lib]# mkdir mysql-redolog
+  ```
+  [root@localhost lib]# mkdir mysql-redolog
   [root@localhost lib]# chown -R mysql: mysql-redolog`
-
+  ```
 
 + Edit de fstab to mount new dirs
 
@@ -187,6 +197,11 @@ Finally we can see all the lvm
   ```
   [root@localhost lib]# mount -a
   [root@localhost lib]# 
+  ```
+
++ Check the mount LVM
+
+  ```
   [root@localhost lib]# mount
   sysfs on /sys type sysfs (rw,nosuid,nodev,noexec,relatime)
   proc on /proc type proc (rw,nosuid,nodev,noexec,relatime)
@@ -248,9 +263,8 @@ Finally we can see all the lvm
 	`[root@localhost lib]# yum install mysql-community-server.x86_64`
 
 + Before start the server, we must do some change to adapt de standar datadir installation to the LVM partitions created
-
-
-  + Add correspond entries to my.cnf
+  
+  + To do it, edit my.cnf. Add the complete example for later works.
 
   ```
   # For advice on how to change settings please see
@@ -369,22 +383,26 @@ Finally we can see all the lvm
 
   ```
   + In the cnf we configured some variables that control the directories for the LVM partition
-    i.e
+    + i.e
+    ```
     innodb_log_group_home_dir 	> Control de redo log directory
     relay_log 			> Control de relay log directory
     log_bin			> Control de binlog directory
+    ```
 
 + Now enable and start the server
 
 	`[root@localhost lib]# systemctl enable mysqld`
 	
 	`[root@localhost lib]# systemctl start mysqld`
+
++ Catch the password from the mysql log
 	
 	`[root@localhost lib]# egrep pass /var/log/mysqld.log`
 	
-	`[root@localhost lib]# mysql -u root -p'4x7DL%y,dcUs'`
+	`[root@localhost lib]# mysql -u root -p'password from log'`
 
-+ Change password
++ Change password, mysql force to do it at first login session time.
 
 	`mysql>  ALTER USER root@localhost IDENTIFY BY 'Isolation Level54$' PASSWORD EXPIRE NEVER;`
 
@@ -409,29 +427,12 @@ Finally we can see all the lvm
   `mysql> select user,host from mysql.user order by 1,2;`
 
 
-+ Verify taht Setup GTID Replication on GCPAMYSQL01 - Master was done
+#### To here you have to do this steps in both server, Master (Primary) and Slave(s) (Secondary)
 
-  a. Enable gtid adding this entries to my.cnf
-
-  ```
-  gtid_mode = ON
-  enforce-gtid-consistency = TRUE
-  ```
-
-  b. If not, Add Master conf into my.cnf
-
-  ```
-  log-bin = mysql01-bin
-  server-id = 1
-  sync_binlog = 1
-  innodb_flush_log_at_trx_commit = 1
-  ```
-
-+ Repeat the same steps on slave. 
 + Setup GTID Replication on GCPAMYSQL02 - Slave
 
 
-  b. Set the server as slave and check settings
+  a. Set the server as slave and check settings
 
   ```
   CHANGE MASTER TO
@@ -445,22 +446,22 @@ Finally we can see all the lvm
   mysql> show slave status\G
   ```
 
-  c. Start read thread, it will get the binary logs from master and save in the slave filesystem
+  b. Start read thread, it will get the binary logs from master and save in the slave filesystem
 
   `mysql> START SLAVE IO_THREAD`
 
-  d. Check connection and replication IO status, "Slave_IO_State", "Master_Log_File", "Slave_IO_Running"
+  c. Check connection and replication IO status, "Slave_IO_State", "Master_Log_File", "Slave_IO_Running"
 
   `mysql> show slave status\G`
 
-  e. start write thread, it will aply the binaries that came through IO thread
+  d. start write thread, it will aply the binaries that came through IO thread
 
   `mysql> START SLAVE SQL_THREAD`
 
-  f. Check status again
+  e. Check status again
 
   `mysql> show slave status\G`
 
-  g. Testing the GTID replication and failover.
+  f. Testing the GTID replication and failover.
 
 ## Enjoy!
